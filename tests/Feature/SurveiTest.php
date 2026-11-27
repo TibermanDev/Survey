@@ -209,6 +209,17 @@ class SurveiTest extends TestCase
         $this->get('/laporan/ringkasan')->assertSee('Rapat terlalu banyak');
     }
 
+    public function test_divisi_yang_tidak_dipilih_tampil_sebagai_tidak_disebutkan(): void
+    {
+        app(ReportVault::class)->setup(self::KEY);
+        $this->openDays(1);
+        $code = $this->fillDay(null, 1, ['division' => 'Saya tidak bersedia memilih']);
+
+        $this->unlock();
+        $this->get("/laporan/karyawan/$code")->assertSee('Divisi tidak disebutkan')->assertDontSee('Saya tidak bersedia memilih');
+        $this->get('/laporan/ringkasan')->assertSee('Divisi tidak disebutkan')->assertDontSee('Saya tidak bersedia memilih');
+    }
+
     public function test_lupa_kunci_dengan_kode_pemulihan(): void
     {
         $recovery = app(ReportVault::class)->setup(self::KEY);

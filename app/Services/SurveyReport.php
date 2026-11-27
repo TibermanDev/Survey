@@ -127,6 +127,10 @@ class SurveyReport
             $scores = array_filter(array_column($p['days'], 'score'), fn ($s) => $s !== null);
             $p['avg'] = $scores ? round(array_sum($scores) / count($scores), 2) : null;
             $p['division'] ??= 'Tidak diketahui';
+            // Di laporan, pilihan "Saya tidak bersedia memilih" ditampilkan lebih jelas.
+            if ($p['division'] === 'Saya tidak bersedia memilih') {
+                $p['division'] = 'Divisi tidak disebutkan';
+            }
         }
         unset($p);
 

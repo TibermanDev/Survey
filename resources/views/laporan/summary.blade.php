@@ -164,8 +164,7 @@
                         <ul class="mt-2 space-y-2">
                             @foreach ($o['items'] as $item)
                                 <li class="rounded-lg bg-stone-50 px-3 py-2 text-sm">
-                                    <p class="whitespace-pre-line">{{ $item['text'] }}</p>
-                                    <p class="mt-1 text-xs text-slate-500">{{ $item['division'] }}</p>
+                                    <p><span class="whitespace-pre-line">{{ $item['text'] }}</span> <span class="text-xs text-slate-500">· {{ $item['division'] }}</span></p>
                                 </li>
                             @endforeach
                         </ul>
