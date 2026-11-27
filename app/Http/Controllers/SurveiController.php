@@ -13,7 +13,15 @@ use Illuminate\Validation\Rule;
 
 class SurveiController extends Controller
 {
+    /** Opsi yang memunculkan kolom isian tambahan. */
+    public const OTHER = 'Lainnya';
+
     public function __construct(private ReportVault $vault) {}
+
+    public static function hasOther(array $q): bool
+    {
+        return in_array($q['type'], ['choice', 'multi'], true) && in_array(self::OTHER, $q['options'] ?? [], true);
+    }
 
     public function index()
     {
@@ -81,7 +89,7 @@ class SurveiController extends Controller
         $day = config("survei.days.$dayNumber");
         $isNew = $state['code'] === null;
 
-        [$rules, $attributes] = $this->rules($day, $isNew);
+        [$rules, $attributes] = $this->rules($day, $isNew, $request);
         $data = $request->validate($rules, $this->messages(), $attributes);
 
         $payload = ['answers' => []];
@@ -94,6 +102,11 @@ class SurveiController extends Controller
             $payload['answers'][$q['id']] = $q['type'] === 'likert' ? (int) $value : $value;
             if ($q['type'] === 'contact') {
                 $payload['answers'][$q['id'].'_kontak'] = trim((string) ($data['answers'][$q['id'].'_kontak'] ?? ''));
+            }
+            if (self::hasOther($q)) {
+                $payload['answers'][$q['id'].'_lainnya'] = in_array(self::OTHER, (array) $value, true)
+                    ? trim((string) ($data['answers'][$q['id'].'_lainnya'] ?? ''))
+                    : '';
             }
         }
 
@@ -154,7 +167,7 @@ class SurveiController extends Controller
         return $open->first(fn ($d) => ! in_array($d, $done, true));
     }
 
-    private function rules(array $day, bool $isNew): array
+    private function rules(array $day, bool $isNew, Request $request): array
     {
         $rules = [];
         $attributes = [];
@@ -180,6 +193,11 @@ class SurveiController extends Controller
 
             if ($q['type'] === 'multi') {
                 $rules["$key.*"] = [Rule::in($q['options'])];
+            }
+            if (self::hasOther($q)) {
+                $otherChosen = in_array(self::OTHER, (array) $request->input($key), true);
+                $rules["{$key}_lainnya"] = [Rule::requiredIf($otherChosen), 'nullable', 'string', 'max:200'];
+                $attributes["{$key}_lainnya"] = 'isian "Lainnya" pada pertanyaan no. '.($i + 1);
             }
             if ($q['type'] === 'contact') {
                 $rules["{$key}_kontak"] = ['nullable', 'string', 'max:150'];

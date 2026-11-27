@@ -114,7 +114,7 @@ class SurveyReport
             foreach (self::day($r->day)['questions'] as $i => $q) {
                 $value = $answers[$q['id']] ?? null;
                 if (self::isFlagged($q, $value)) {
-                    $people[$code]['flags'][] = ['day' => $r->day, 'no' => $i + 1, 'text' => $q['text'], 'answer' => $value];
+                    $people[$code]['flags'][] = ['day' => $r->day, 'no' => $i + 1, 'text' => $q['text'], 'label' => $q['flag_label'] ?? $q['text'], 'answer' => $value];
                 }
                 if ($q['type'] === 'contact' && $value === 'Ya') {
                     $people[$code]['contact'] = $answers[$q['id'].'_kontak'] ?? '';
@@ -172,7 +172,7 @@ class SurveyReport
 
         $flagged = count(array_unique(array_column($r['flags'], 'code')));
         $items[] = $flagged
-            ? ['tone' => 'bad', 'text' => "$flagged karyawan memberi jawaban lampu merah (misalnya perlakuan tidak pantas atau kondisi mental buruk). Daftarnya ada tepat di bawah."]
+            ? ['tone' => 'bad', 'text' => "$flagged karyawan memberi jawaban lampu merah (misalnya perlakuan tidak pantas atau kondisi mental buruk). Daftarnya ada di bagian “Perlu ditindaklanjuti segera”."]
             : ['tone' => 'good', 'text' => 'Tidak ada jawaban lampu merah.'];
 
         $divs = array_filter($r['divisions'], fn ($d) => $d['avg'] !== null);
@@ -283,6 +283,7 @@ class SurveyReport
                 }
                 $options = $q['type'] === 'contact' ? ['Ya', 'Tidak'] : $q['options'];
                 $counts = array_fill_keys($options, 0);
+                $others = [];
                 foreach ($people as $p) {
                     $v = $p['days'][$d]['answers'][$q['id']] ?? null;
                     foreach ((array) $v as $one) {
@@ -290,8 +291,12 @@ class SurveyReport
                             $counts[$one]++;
                         }
                     }
+                    $other = trim((string) ($p['days'][$d]['answers'][$q['id'].'_lainnya'] ?? ''));
+                    if ($other !== '') {
+                        $others[] = ['text' => $other, 'division' => $p['division']];
+                    }
                 }
-                $out[] = ['day' => $d, 'no' => $i + 1, 'question' => $q, 'counts' => $counts];
+                $out[] = ['day' => $d, 'no' => $i + 1, 'question' => $q, 'counts' => $counts, 'others' => $others];
             }
         }
 

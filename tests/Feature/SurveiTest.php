@@ -189,6 +189,26 @@ class SurveiTest extends TestCase
         $this->assertSame(0, Response::count());
     }
 
+    public function test_pilihan_lainnya_wajib_diisi_dan_muncul_di_laporan(): void
+    {
+        app(ReportVault::class)->setup(self::KEY);
+        $this->openDays(1);
+        $this->post('/mulai', ['mode' => 'baru']);
+
+        // Pilih "Lainnya" tanpa isian: ditolak.
+        $answers = $this->answers(1, ['q9' => ['Lainnya']]);
+        $this->post('/isi', ['division' => 'Fleet', 'answers' => $answers])->assertSessionHasErrors('answers.q9_lainnya');
+
+        // Dengan isian: tersimpan.
+        $answers['q9_lainnya'] = 'Rapat terlalu banyak';
+        $this->post('/isi', ['division' => 'Fleet', 'answers' => $answers])->assertRedirect('/selesai');
+        $code = Participant::value('code');
+
+        $this->unlock();
+        $this->get("/laporan/karyawan/$code")->assertSee('Rapat terlalu banyak');
+        $this->get('/laporan/ringkasan')->assertSee('Rapat terlalu banyak');
+    }
+
     public function test_lupa_kunci_dengan_kode_pemulihan(): void
     {
         $recovery = app(ReportVault::class)->setup(self::KEY);

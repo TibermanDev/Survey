@@ -81,6 +81,9 @@
                                     @break
                                 @case('multi')
                                     {{ implode(', ', (array) $v) }}
+                                    @if (($answers[$q['id'].'_lainnya'] ?? '') !== '')
+                                        <span class="block text-slate-600">Lainnya: “{{ $answers[$q['id'].'_lainnya'] }}”</span>
+                                    @endif
                                     @break
                                 @case('contact')
                                     {{ $v }}@if ($v === 'Ya' && ($answers[$q['id'].'_kontak'] ?? '') !== '') · {{ $answers[$q['id'].'_kontak'] }} @endif
@@ -90,6 +93,9 @@
                                     @break
                                 @default
                                     {{ $v }}
+                                    @if (($answers[$q['id'].'_lainnya'] ?? '') !== '')
+                                        <span class="block text-slate-600">Lainnya: “{{ $answers[$q['id'].'_lainnya'] }}”</span>
+                                    @endif
                             @endswitch
                             @if ($score !== null && ! empty($q['reverse']))
                                 <span class="ml-1 text-xs font-normal text-slate-400">(skor {{ $score }})</span>
