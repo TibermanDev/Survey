@@ -173,7 +173,7 @@ class SurveiController extends Controller
             $rules[$key] = match ($q['type']) {
                 'likert' => ['required', 'integer', 'between:1,5'],
                 'choice' => ['required', Rule::in($q['options'])],
-                'multi' => ['required', 'array', 'min:1'],
+                'multi' => array_merge(['required', 'array', 'min:1'], isset($q['max']) ? ['max:'.$q['max']] : []),
                 'contact' => ['required', 'in:Ya,Tidak'],
                 'text' => ['nullable', 'string', 'max:2000'],
             };
@@ -199,7 +199,7 @@ class SurveiController extends Controller
             'between' => 'Pilihan pada :attribute tidak valid.',
             'array' => 'Pilihan pada :attribute tidak valid.',
             'min' => ':Attribute wajib dipilih minimal satu.',
-            'max' => ':Attribute terlalu panjang.',
+            'max' => ['string' => ':Attribute terlalu panjang.', 'array' => 'Pada :attribute, pilih maksimal :max jawaban.'],
             'string' => ':Attribute tidak valid.',
         ];
     }

@@ -182,6 +182,10 @@ class SurveiTest extends TestCase
         unset($answers['q1']);
 
         $this->post('/isi', ['answers' => $answers])->assertSessionHasErrors(['division', 'answers.q1']);
+
+        // Pertanyaan "pilih maksimal 2" menolak 3 pilihan.
+        $answers = $this->answers(1, ['q9' => ['Target terlalu tinggi', 'Permintaan mendadak', 'Lainnya']]);
+        $this->post('/isi', ['division' => 'IT Software', 'answers' => $answers])->assertSessionHasErrors('answers.q9');
         $this->assertSame(0, Response::count());
     }
 

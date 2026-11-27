@@ -97,7 +97,7 @@
                             @break
 
                         @case('multi')
-                            <div class="grid gap-2 sm:grid-cols-2">
+                            <div class="grid gap-2 sm:grid-cols-2" @isset($q['max']) data-max="{{ $q['max'] }}" @endisset>
                                 @foreach ($q['options'] as $opt)
                                     <label class="flex cursor-pointer items-center gap-3 rounded-lg border border-stone-300 px-3 py-2.5 hover:border-teal-500 has-[:checked]:border-teal-700 has-[:checked]:bg-teal-50">
                                         <input type="checkbox" name="{{ $name }}[]" value="{{ $opt }}" class="size-4 accent-teal-700" @checked(in_array($opt, (array) $old, true))>
