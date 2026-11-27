@@ -129,7 +129,7 @@ class SurveiTest extends TestCase
         $this->get('/panitia')->assertDontSee('Budi');
 
         // Kunci sementara yang tersimpan di server bisa membuka jawaban SEBELUM dipindah.
-        $tempSecret = base64_decode(\Illuminate\Support\Facades\Crypt::decryptString(
+        $tempSecret = (\Illuminate\Support\Facades\Crypt::decryptString(
             \Illuminate\Support\Facades\DB::table('report_vault')->value('temp_secret')
         ));
         $this->assertNotNull($vault->decrypt(Response::value('payload'), $tempSecret));

@@ -1,0 +1,6 @@
+# Konfigurasi OpenSSL minimal untuk membuat pasangan kunci laporan.
+# Dibutuhkan terutama di Windows yang tidak punya openssl.cnf bawaan.
+[ req ]
+distinguished_name = req_distinguished_name
+
+[ req_distinguished_name ]

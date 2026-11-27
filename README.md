@@ -12,7 +12,7 @@ Sistem survei 6 hari (10 pertanyaan per hari) dengan Laravel + MySQL. Karyawan m
 
 ## Cara memasang
 
-Kebutuhan: PHP 8.3+ (dengan ekstensi `sodium` dan `pdo_mysql`), Composer, Node.js, MySQL.
+Kebutuhan: PHP 8.3+ (dengan ekstensi `openssl` dan `pdo_mysql`, yang aktif di hampir semua hosting), Composer, Node.js, MySQL. Ekstensi `sodium` **tidak** diperlukan.
 
 ```bash
 composer install
@@ -53,7 +53,7 @@ Sebelum dipakai:
 
 ## Keamanan dan kerahasiaan
 
-- Nama, divisi, dan semua jawaban **dienkripsi** dengan kunci publik milik Pak Andy (libsodium). Kunci untuk membukanya hanya tersimpan dalam keadaan terkunci oleh kunci Pak Andy dan oleh kode pemulihannya. Isi database saja tidak cukup untuk membaca jawaban, termasuk bagi panitia atau pembuat sistem.
+- Nama, divisi, dan semua jawaban **dienkripsi** dengan kunci publik milik Pak Andy (RSA-OAEP 3072 + AES-256-GCM lewat OpenSSL; kunci Pak Andy diamankan dengan PBKDF2-SHA256). Kunci untuk membukanya hanya tersimpan dalam keadaan terkunci oleh kunci Pak Andy dan oleh kode pemulihannya. Isi database saja tidak cukup untuk membaca jawaban, termasuk bagi panitia atau pembuat sistem.
 - **Kunci sementara**: jika survei dibuka sebelum Pak Andy membuat kunci, jawaban dienkripsi dengan kunci sementara yang kunci pembukanya disimpan di server (terenkripsi dengan `APP_KEY`). Selama masa ini, pengelola server secara teknis bisa membuka jawaban; panel panitia tetap tidak bisa. Saat Pak Andy membuat kunci, sistem membuat pasangan kunci baru, mengenkripsi ulang semua jawaban, lalu menghapus kunci sementara, sehingga salinan kunci sementara tidak berguna lagi. Panel panitia menampilkan peringatan kuning selama kunci sementara masih dipakai.
 - Jika brankas kunci dihapus atau dibuat ulang lewat database, jawaban lama **tidak bisa dibaca lagi oleh siapa pun**. Jadi kunci tidak bisa "dibajak" untuk membaca data lama.
 - Percobaan kunci/password dibatasi 5 kali per menit.
@@ -65,3 +65,24 @@ Sebelum dipakai:
 ```bash
 php artisan test
 ```
+
+## Deploy ke hosting (cPanel)
+
+Di file `.env` server:
+
+```
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://survey.catatankami.com
+OPERATOR_PASSWORD=isi-password-panitia-yang-kuat
+```
+
+Lalu jalankan di folder aplikasi:
+
+```bash
+composer install --no-dev --optimize-autoloader
+php artisan migrate --force
+php artisan config:cache
+```
+
+Folder `public/build` hasil `npm run build` ikut diunggah. `APP_DEBUG=false` wajib di server agar halaman error tidak menampilkan isi kode ke publik.

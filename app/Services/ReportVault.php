@@ -8,14 +8,15 @@ use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 /**
- * Brankas kunci laporan Pak Andy.
+ * Brankas kunci laporan Pak Andy (memakai OpenSSL, tersedia di hampir semua hosting).
  *
  * Cara kerja singkat:
- * - Ada sepasang kunci: kunci PUBLIK (hanya bisa mengunci) dan kunci RAHASIA
+ * - Ada sepasang kunci RSA: kunci PUBLIK (hanya bisa mengunci) dan kunci RAHASIA
  *   (satu-satunya yang bisa membuka jawaban).
- * - Semua jawaban karyawan dienkripsi dengan kunci publik.
+ * - Setiap jawaban dienkripsi dengan kunci AES acak, lalu kunci AES itu dikunci
+ *   dengan kunci publik RSA (RSA-OAEP + AES-256-GCM).
  * - Setelah Pak Andy membuat kunci, kunci rahasia hanya tersimpan dalam keadaan
- *   terkunci oleh kunci Pak Andy dan oleh kode pemulihannya.
+ *   terkunci oleh kunci Pak Andy dan oleh kode pemulihannya (PBKDF2 + AES-256-GCM).
  *
  * Kunci sementara:
  * - Jika panitia membuka survei sebelum Pak Andy membuat kunci, sistem membuat
@@ -29,6 +30,10 @@ class ReportVault
     private const TABLE = 'report_vault';
 
     private const RECOVERY_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+
+    private const KDF = 'pbkdf2-sha256';
+
+    private const KDF_ITERATIONS = 310000;
 
     /** Sudah ada kunci (sementara atau milik Pak Andy), jadi jawaban bisa dienkripsi. */
     public function hasPublicKey(): bool
@@ -61,14 +66,13 @@ class ReportVault
                 return;
             }
 
-            $keypair = sodium_crypto_box_keypair();
+            [$publicKey, $secret] = $this->newKeypair();
             DB::table(self::TABLE)->insert([
-                'public_key' => base64_encode(sodium_crypto_box_publickey($keypair)),
-                'temp_secret' => Crypt::encryptString(base64_encode(sodium_crypto_box_secretkey($keypair))),
+                'public_key' => $publicKey,
+                'temp_secret' => Crypt::encryptString($secret),
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
-            sodium_memzero($keypair);
         });
     }
 
@@ -85,25 +89,20 @@ class ReportVault
                 throw new RuntimeException('Kunci laporan sudah pernah dibuat.');
             }
 
-            $keypair = sodium_crypto_box_keypair();
-            $secret = sodium_crypto_box_secretkey($keypair);
-            $publicKey = sodium_crypto_box_publickey($keypair);
+            [$publicKey, $secret] = $this->newKeypair();
             $recoveryCode = $this->generateRecoveryCode();
 
             if ($row) {
-                $this->reencryptAll(base64_decode(Crypt::decryptString($row->temp_secret)), $publicKey);
+                $this->reencryptAll(Crypt::decryptString($row->temp_secret), $publicKey);
                 DB::table(self::TABLE)->delete();
             }
 
             DB::table(self::TABLE)->insert(array_merge(
-                ['public_key' => base64_encode($publicKey), 'temp_secret' => null],
+                ['public_key' => $publicKey, 'temp_secret' => null],
                 $this->wrap('key', $secret, $key),
                 $this->wrap('recovery', $secret, self::normalizeRecovery($recoveryCode)),
                 ['created_at' => now(), 'updated_at' => now()],
             ));
-
-            sodium_memzero($keypair);
-            sodium_memzero($secret);
 
             return $recoveryCode;
         });
@@ -138,8 +137,6 @@ class ReportVault
             ['updated_at' => now()],
         ));
 
-        sodium_memzero($secret);
-
         return $newRecovery;
     }
 
@@ -158,13 +155,13 @@ class ReportVault
      */
     public function encrypt(array $payload): string
     {
-        $publicKey = base64_decode(DB::table(self::TABLE)->sharedLock()->value('public_key') ?? '');
+        $publicKey = DB::table(self::TABLE)->sharedLock()->value('public_key');
 
-        if ($publicKey === '') {
+        if (! $publicKey) {
             throw new RuntimeException('Kunci laporan belum ada.');
         }
 
-        return base64_encode(sodium_crypto_box_seal(json_encode($payload), $publicKey));
+        return $this->seal(json_encode($payload), $publicKey);
     }
 
     public function decrypt(string $payload, string $secret): ?array
@@ -179,15 +176,44 @@ class ReportVault
         return strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $code));
     }
 
+    /** @return array{0: string, 1: string} [kunci publik PEM, kunci rahasia PEM] */
+    private function newKeypair(): array
+    {
+        $config = ['config' => resource_path('openssl.cnf')];
+        $key = openssl_pkey_new($config + ['private_key_bits' => 3072, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+
+        if ($key === false || ! openssl_pkey_export($key, $secret, null, $config)) {
+            throw new RuntimeException('Gagal membuat pasangan kunci: '.openssl_error_string());
+        }
+
+        return [openssl_pkey_get_details($key)['key'], $secret];
+    }
+
+    /** RSA-OAEP membungkus kunci AES acak; AES-256-GCM mengenkripsi isinya. */
+    private function seal(string $plain, string $publicKey): string
+    {
+        $aesKey = random_bytes(32);
+
+        if (! openssl_public_encrypt($aesKey, $wrapped, $publicKey, OPENSSL_PKCS1_OAEP_PADDING)) {
+            throw new RuntimeException('Enkripsi gagal.');
+        }
+
+        return base64_encode(pack('n', strlen($wrapped)).$wrapped.Aes::encrypt($plain, $aesKey));
+    }
+
     private function open(string $payload, string $secret): ?string
     {
-        $keypair = sodium_crypto_box_keypair_from_secretkey_and_publickey(
-            $secret,
-            sodium_crypto_box_publickey_from_secretkey($secret),
-        );
-        $plain = sodium_crypto_box_seal_open(base64_decode($payload), $keypair);
+        $raw = base64_decode($payload, true);
+        if ($raw === false || strlen($raw) < 2) {
+            return null;
+        }
 
-        return $plain === false ? null : $plain;
+        $len = unpack('n', substr($raw, 0, 2))[1];
+        if (! @openssl_private_decrypt(substr($raw, 2, $len), $aesKey, $secret, OPENSSL_PKCS1_OAEP_PADDING)) {
+            return null;
+        }
+
+        return Aes::decrypt(substr($raw, 2 + $len), $aesKey);
     }
 
     /** Memindahkan semua jawaban dari kunci sementara ke kunci publik baru. */
@@ -196,15 +222,11 @@ class ReportVault
         Response::query()->lockForUpdate()->select(['id', 'payload'])->chunkById(200, function ($rows) use ($oldSecret, $newPublicKey) {
             foreach ($rows as $r) {
                 $plain = $this->open($r->payload, $oldSecret);
-                if ($plain === null) {
-                    continue;
+                if ($plain !== null) {
+                    Response::whereKey($r->id)->update(['payload' => $this->seal($plain, $newPublicKey)]);
                 }
-                Response::whereKey($r->id)->update(['payload' => base64_encode(sodium_crypto_box_seal($plain, $newPublicKey))]);
-                sodium_memzero($plain);
             }
         });
-
-        sodium_memzero($oldSecret);
     }
 
     private function generateRecoveryCode(): string
@@ -224,41 +246,24 @@ class ReportVault
     /** Mengunci $secret memakai turunan dari $password. */
     private function wrap(string $prefix, string $secret, string $password): array
     {
-        $salt = random_bytes(SODIUM_CRYPTO_PWHASH_SALTBYTES);
-        $nonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
-        $derived = $this->derive($password, $salt);
-        $cipher = sodium_crypto_secretbox($secret, $nonce, $derived);
-        sodium_memzero($derived);
+        $salt = random_bytes(16);
 
         return [
             "{$prefix}_salt" => base64_encode($salt),
-            "{$prefix}_nonce" => base64_encode($nonce),
-            "{$prefix}_cipher" => base64_encode($cipher),
+            "{$prefix}_nonce" => self::KDF.':'.self::KDF_ITERATIONS,
+            "{$prefix}_cipher" => base64_encode(Aes::encrypt($secret, $this->derive($password, $salt))),
         ];
     }
 
     private function unwrap(object $row, string $prefix, string $password): ?string
     {
         $derived = $this->derive($password, base64_decode($row->{"{$prefix}_salt"}));
-        $secret = sodium_crypto_secretbox_open(
-            base64_decode($row->{"{$prefix}_cipher"}),
-            base64_decode($row->{"{$prefix}_nonce"}),
-            $derived,
-        );
-        sodium_memzero($derived);
 
-        return $secret === false ? null : $secret;
+        return Aes::decrypt(base64_decode($row->{"{$prefix}_cipher"}), $derived);
     }
 
     private function derive(string $password, string $salt): string
     {
-        return sodium_crypto_pwhash(
-            SODIUM_CRYPTO_SECRETBOX_KEYBYTES,
-            $password,
-            $salt,
-            SODIUM_CRYPTO_PWHASH_OPSLIMIT_INTERACTIVE,
-            SODIUM_CRYPTO_PWHASH_MEMLIMIT_INTERACTIVE,
-            SODIUM_CRYPTO_PWHASH_ALG_DEFAULT,
-        );
+        return hash_pbkdf2('sha256', $password, $salt, self::KDF_ITERATIONS, 32, true);
     }
 }

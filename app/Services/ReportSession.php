@@ -18,18 +18,15 @@ class ReportSession
 
     public function start(Request $request, string $secret): void
     {
-        $k = random_bytes(SODIUM_CRYPTO_SECRETBOX_KEYBYTES);
-        $nonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
+        $k = random_bytes(32);
 
         $request->session()->regenerate();
         $request->session()->put('laporan', [
-            'nonce' => base64_encode($nonce),
-            'cipher' => base64_encode(sodium_crypto_secretbox($secret, $nonce, $k)),
+            'cipher' => base64_encode(Aes::encrypt($secret, $k)),
             'expires' => now()->addMinutes($this->minutes())->timestamp,
         ]);
 
         Cookie::queue(self::COOKIE, base64_encode($k), $this->minutes());
-        sodium_memzero($k);
     }
 
     /** Kunci rahasia jika Pak Andy masih dalam sesi laporan, selain itu null. */
@@ -38,12 +35,12 @@ class ReportSession
         $data = $request->session()->get('laporan');
         $k = base64_decode((string) $request->cookie(self::COOKIE));
 
-        if (! $data || strlen($k) !== SODIUM_CRYPTO_SECRETBOX_KEYBYTES || $data['expires'] < now()->timestamp) {
+        if (! $data || strlen($k) !== 32 || $data['expires'] < now()->timestamp) {
             return null;
         }
 
-        $secret = sodium_crypto_secretbox_open(base64_decode($data['cipher']), base64_decode($data['nonce']), $k);
-        if ($secret === false) {
+        $secret = Aes::decrypt(base64_decode($data['cipher'] ?? ''), $k);
+        if ($secret === null) {
             return null;
         }
 
