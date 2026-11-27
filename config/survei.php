@@ -48,6 +48,9 @@ return [
         'Sales',
         'Executive Assistant',
         'Fleet',
+        'Delivery',
+        'Quality Assurance',
+        'Cost & Inventory Control',
     ],
 
     'likert_labels' => [
