@@ -33,6 +33,20 @@ class SurveyReport
         };
     }
 
+    /** Label singkat untuk jawaban "bersedia nama disebutkan" (Hari 6). */
+    public static function consentBadge(?string $value): ?array
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        return match (true) {
+            str_starts_with($value, 'Ya') => ['label' => 'Nama boleh disebutkan', 'class' => 'bg-emerald-100 text-emerald-800'],
+            str_starts_with($value, 'Boleh') => ['label' => 'Nama hanya untuk Pak Andy', 'class' => 'bg-amber-100 text-amber-800'],
+            default => ['label' => 'Ingin tetap anonim', 'class' => 'bg-slate-200 text-slate-700'],
+        };
+    }
+
     public static function fmt(?float $value): string
     {
         return $value === null ? '—' : number_format(round($value, 1), 1, ',', '');
@@ -97,6 +111,7 @@ class SurveyReport
                 'days' => [],
                 'flags' => [],
                 'contact' => null,
+                'consent' => null,
             ];
 
             if ($r->day === 1) {
@@ -115,6 +130,9 @@ class SurveyReport
                 $value = $answers[$q['id']] ?? null;
                 if (self::isFlagged($q, $value)) {
                     $people[$code]['flags'][] = ['day' => $r->day, 'no' => $i + 1, 'text' => $q['text'], 'label' => $q['flag_label'] ?? $q['text'], 'answer' => $value];
+                }
+                if (! empty($q['consent']) && $value !== null) {
+                    $people[$code]['consent'] = $value;
                 }
                 if ($q['type'] === 'contact' && $value === 'Ya') {
                     $people[$code]['contact'] = $answers[$q['id'].'_kontak'] ?? '';
@@ -247,7 +265,7 @@ class SurveyReport
         $list = [];
         foreach ($people as $p) {
             foreach ($p['flags'] as $f) {
-                $list[] = $f + ['code' => $p['code'], 'name' => $p['name'], 'division' => $p['division']];
+                $list[] = $f + ['code' => $p['code'], 'name' => $p['name'], 'division' => $p['division'], 'consent' => $p['consent']];
             }
         }
 

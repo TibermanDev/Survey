@@ -86,6 +86,9 @@
                 <div class="w-48 shrink-0">
                     <p class="font-semibold text-slate-900">{{ $row['first']['name'] ?? 'Anonim' }}</p>
                     <p class="text-xs text-slate-500">{{ $row['first']['division'] }}</p>
+                    @if ($c = SurveyReport::consentBadge($row['first']['consent'] ?? null))
+                        <span class="mt-1 inline-block rounded px-1.5 py-0.5 text-[11px] font-medium {{ $c['class'] }}">{{ $c['label'] }}</span>
+                    @endif
                 </div>
                 <div class="flex flex-1 flex-wrap gap-1.5">
                     @foreach ($row['flags'] as $f)

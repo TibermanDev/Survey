@@ -175,6 +175,13 @@ return [
                     'options' => ['Konseling/psikolog', 'Pengurangan beban kerja', 'Fleksibilitas jam kerja', 'Pelatihan manajemen stres', 'Perbaikan komunikasi dengan atasan', 'Lainnya']],
                 ['id' => 'q9', 'type' => 'contact', 'text' => 'Bersediakah Anda dihubungi langsung oleh Pak Andy untuk tindak lanjut?'],
                 ['id' => 'q10', 'type' => 'text', 'text' => 'Pesan atau masukan lain yang ingin Anda sampaikan?'],
+                ['id' => 'q11', 'type' => 'choice', 'consent' => true,
+                    'text' => 'Jika masalah yang Anda sampaikan akan ditindaklanjuti atau diproses oleh Pak Andy, apakah Anda bersedia nama Anda disebutkan atau dilibatkan?',
+                    'options' => [
+                        'Ya, nama saya boleh disebutkan dan saya bersedia dilibatkan',
+                        'Boleh dilibatkan, tetapi nama saya hanya diketahui Pak Andy',
+                        'Tidak, saya ingin tetap anonim',
+                    ]],
             ],
         ],
 

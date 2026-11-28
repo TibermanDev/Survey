@@ -16,6 +16,9 @@
         @if ($p['contact'] !== null)
             <p class="mt-2 text-sm text-slate-600">Bersedia dihubungi{{ $p['contact'] ? ': '.$p['contact'] : '' }}</p>
         @endif
+        @if ($c = SurveyReport::consentBadge($p['consent']))
+            <span class="mt-2 inline-block rounded-md px-2 py-0.5 text-xs font-medium {{ $c['class'] }}">{{ $c['label'] }}</span>
+        @endif
     </div>
     <div class="sm:text-right">
         <p class="text-sm text-slate-500">Kondisi keseluruhan</p>

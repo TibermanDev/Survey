@@ -220,6 +220,28 @@ class SurveiTest extends TestCase
         $this->get('/laporan/ringkasan')->assertSee('Divisi tidak disebutkan')->assertDontSee('Saya tidak bersedia memilih');
     }
 
+    public function test_pertanyaan_kesediaan_nama_di_hari_6_wajib_dan_tampil_di_laporan(): void
+    {
+        app(ReportVault::class)->setup(self::KEY);
+        $this->openDays(1, 2, 3, 4, 5, 6);
+        $code = $this->fillDay(null, 1, ['name' => 'Dina', 'division' => 'Delivery']);
+        foreach ([2, 3, 4, 5] as $d) {
+            $this->fillDay($code, $d);
+        }
+
+        // Tanpa jawaban kesediaan: ditolak.
+        $this->post('/mulai', ['mode' => 'lanjut', 'code' => $code]);
+        $answers = $this->answers(6);
+        unset($answers['q11']);
+        $this->post('/isi', ['answers' => $answers])->assertSessionHasErrors('answers.q11');
+
+        $this->post('/isi', ['answers' => $this->answers(6, ['q11' => 'Boleh dilibatkan, tetapi nama saya hanya diketahui Pak Andy'])])
+            ->assertRedirect('/selesai');
+
+        $this->unlock();
+        $this->get("/laporan/karyawan/$code")->assertSee('Nama hanya untuk Pak Andy');
+    }
+
     public function test_lupa_kunci_dengan_kode_pemulihan(): void
     {
         $recovery = app(ReportVault::class)->setup(self::KEY);
